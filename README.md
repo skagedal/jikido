@@ -164,9 +164,10 @@ fvm flutter test
 fvm flutter run
 ```
 
-`fvm flutter analyze` and `fvm flutter test` are what the top-level `./check`
-runs. To move to a newer SDK, `fvm use <version>` and commit the new `.fvmrc`;
-CI reads the version straight out of that file.
+`fvm flutter analyze` and `fvm flutter test` are what CI runs, and
+`analyze` must be clean: fix the lint rather than silencing it. To move to a
+newer SDK, `fvm use <version>` and commit the new `.fvmrc`; CI reads the
+version straight out of that file.
 
 Editors are pointed at the SDK through the `.fvm/versions/<version>` symlink
 `fvm use` leaves in the project — in VS Code that is `dart.flutterSdkPath`,
@@ -182,6 +183,149 @@ what cannot:
 | `lib/src/audio/` | just_audio and the audio session. |
 | `lib/src/alarm/` | The scheduled notification, the foreground service, and the exact-alarm permission. |
 | `lib/src/ui/` | Screens, and the ensō. |
+
+### On a real phone
+
+`local/build-to-phone` builds and installs, with no Xcode involved:
+
+```
+./local/build-to-phone            # release
+./local/build-to-phone --debug
+```
+
+It needs `local/devices.env`, which says which phone and which Apple team
+to sign with. That file is gitignored, because this repository is public
+and those values are personal — copy `local/devices.env.example`, or
+symlink your own from wherever you keep such things. The team reaches
+Xcode through a generated `ios/Flutter/Signing.xcconfig`, also gitignored,
+which `Debug.xcconfig` and `Release.xcconfig` include optionally so
+simulator builds work without it.
+
+### Updating dependencies
+
+```
+./update              # the Flutter SDK, pubspec.lock and the pinned actions
+./update --dry-run    # print what would run, change nothing
+./update dart         # only pubspec.lock
+```
+
+`pubspec.yaml` holds ranges a human wrote, so crossing a major version stays
+a manual edit. The Flutter SDK in `.fvmrc` follows the newest stable release,
+and [pinact](https://github.com/suzuki-shunsuke/pinact) moves the actions in
+`.github/workflows`, which are pinned to commit SHAs.
+
+## Releasing
+
+Push a version tag and both apps ship from that commit:
+
+```
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+`.github/workflows/release.yml` builds the Android APK and attaches it to
+the tag's GitHub release, where anyone can download it without an account
+or an app store, and builds the iOS app and uploads it to TestFlight.
+
+The tag is the only place the version is written. `--build-name` comes
+from the tag and `--build-number` from the run, so a release needs no
+commit of its own and `pubspec.yaml`'s version is only what a local build
+gets. A tag must be `v` and one to three integers: the workflow refuses
+anything else up front, because App Store Connect would refuse it at the
+end of a long build.
+
+The two jobs are independent, so the APK is published even when the Apple
+side fails, and the other way round.
+
+The iOS job does not finish at the upload. A successful upload means
+Apple took the bytes, not that it took the build: a binary can be refused
+a minute later, and the only notice is an email while the API goes on
+reporting no build at all. So the job then waits for the build to show up
+in App Store Connect, and fails if it never does.
+
+### Setting up the Android key
+
+Once, on your machine:
+
+```
+./local/make-release-keystore
+```
+
+It writes a keystore outside the repository and a gitignored
+`android/key.properties` pointing at it, and prints the two commands that
+give CI the same key. Back the keystore up before anything else. Android
+knows an app by its signature, so if that file is lost, everyone who has
+the app has to delete it before they can install another build — and the
+copy in `key.properties` is the only other one.
+
+### Setting up the Apple side
+
+It needs the Apple Developer Program. Two things have to be done by hand
+first, because App Store Connect has no API for either:
+
+1. **An App Store Connect API key**, under Users and Access →
+   Integrations, with the **Admin** role. App Manager is enough to upload
+   builds, but not to have a certificate issued. The `.p8` downloads once
+   and never again. One key serves every app on the account.
+2. **The app record** for `tech.skagedal.jikido` in App Store Connect. An
+   upload has nowhere to land until it exists.
+
+Then point a config file at that key and run one script:
+
+```
+cp local/appstore.env.example local/appstore.env
+$EDITOR local/appstore.env
+./local/make-ios-signing
+```
+
+It has App Store Connect issue an Apple Distribution certificate — or
+reuses the one in `~/.apple-signing` if it is still good — registers the
+bundle id if it is new, makes the App Store provisioning profile, and sets
+all seven iOS secrets. The certificate belongs to the team rather than the
+app, so its files there carry no app name and every app's release shares
+them; an account is allowed very few live distribution certificates, and
+asking for another while the one you have still works is how you run out.
+Back up `~/.apple-signing`: the private key is in there and nowhere else.
+
+Then turn the job on:
+
+```
+gh variable set IOS_RELEASE --body enabled
+```
+
+Until you do, the iOS job does not run and every release page says so.
+
+Run `make-ios-signing` again in a year. The certificate and the profile
+both expire a year after they are issued: the profile is replaced every
+time, the certificate only once the one you have is nearly out.
+
+### What ends up in the repository's secrets
+
+| Secret | What it is | Set by |
+| --- | --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | the keystore, base64 | you, from `make-release-keystore` |
+| `ANDROID_KEYSTORE_PASSWORD` | its password | you, from `make-release-keystore` |
+| `IOS_DIST_CERT_P12_BASE64` | the distribution certificate and its key | `make-ios-signing` |
+| `IOS_DIST_CERT_PASSWORD` | the password that bundle was made under | `make-ios-signing` |
+| `IOS_PROVISIONING_PROFILE_BASE64` | the App Store profile | `make-ios-signing` |
+| `IOS_TEAM_ID` | the team id, the `IOS_TEAM` in `local/devices.env` | `make-ios-signing` |
+| `APP_STORE_CONNECT_KEY_ID` | the API key's id | `make-ios-signing` |
+| `APP_STORE_CONNECT_ISSUER_ID` | the issuer id shown above the key list | `make-ios-signing` |
+| `APP_STORE_CONNECT_PRIVATE_KEY` | the contents of the `.p8` | `make-ios-signing` |
+
+### Two ways of signing
+
+On your machine the app is signed *automatically*: Xcode talks to Apple as
+the Apple ID you are logged in as. A runner has nobody logged in, so there
+it is signed *manually*, with one certificate and one profile.
+`ci/setup-ios-signing` switches the mode by writing the same gitignored
+`ios/Flutter/Signing.xcconfig` that `local/build-to-phone` writes, with the
+identity and the profile named alongside the team.
+
+## Specs
+
+Changes whose interesting part is a decision get a written spec under
+`specs/`, drafted in `specs/drafts/` and numbered into `specs/implemented/`
+when they ship. See `specs/README.md`.
 
 ## References
 
