@@ -1,6 +1,6 @@
-# jikido: showing the volume the bell will ring at
+# Showing the volume the bell will ring at
 
-Implements [#66](https://github.com/skagedal/skagedal-tools/issues/66).
+Implements [#2](https://github.com/skagedal/jikido/issues/2).
 
 A sitting's bell should be as loud as it was yesterday. Too quiet and the
 closing bell is missed, which is the one thing Jikido exists to prevent;
