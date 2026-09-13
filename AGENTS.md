@@ -1,9 +1,20 @@
 # Instructions for AI Agents
 
-## Checks
+## Flutter
 
-`fvm flutter analyze` and `fvm flutter test` must both pass; CI runs the
-same two. Fix a lint rather than silencing it.
+- The Flutter SDK is pinned with [fvm](https://fvm.app) in `.fvmrc`, which
+  is committed; `.fvm/` is not. Run Flutter through `fvm flutter ...`, not a
+  `flutter` off `$PATH`. Change the version with `fvm use <version>` and
+  commit `.fvmrc`; CI reads it via `flutter-version-file`.
+- `fvm flutter analyze` and `fvm flutter test` must both pass; CI runs the
+  same two. Fix a lint rather than adding `// ignore:`.
+- Keep platform-independent logic — timing, state machines, formatting — in
+  plain Dart classes that do not import plugins, and have widgets and
+  controllers take their platform dependencies by constructor injection.
+  Plugin calls can't run under `flutter test`, so anything reached through a
+  static plugin call is untestable.
+- Generated binary assets (sounds, images) ship with the script that
+  generated them, under `tool/`.
 
 ## Specs
 
