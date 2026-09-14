@@ -5,6 +5,7 @@ import 'package:jikido/src/alarm/sitting_service.dart';
 import 'package:jikido/src/audio/bell_audio.dart';
 import 'package:jikido/src/bell.dart';
 import 'package:jikido/src/screen_awake.dart';
+import 'package:jikido/src/volume.dart';
 
 /// Records what would have been played, without going near a platform
 /// channel. `implements` rather than `extends`, so that the real class's
@@ -195,10 +196,12 @@ class FakeSittingService implements SittingService {
 
 class FakeScreenAwake implements ScreenAwake {
   bool awake = false;
+  final List<bool> setCalls = <bool>[];
 
   @override
   Future<void> set({required bool enabled}) async {
     awake = enabled;
+    setCalls.add(enabled);
   }
 }
 
@@ -211,4 +214,28 @@ class TestClock {
   DateTime call() => now;
 
   void advance(Duration by) => now = now.add(by);
+}
+
+class FakeVolume implements Volume {
+  /// What [read] answers. Null stands in for a platform that will not say.
+  VolumeLevel? level = const VolumeLevel(level: 0.5, steps: 16);
+  int reads = 0;
+
+  final StreamController<VolumeLevel> _changes =
+      StreamController<VolumeLevel>.broadcast();
+
+  /// Moves the level, the way a press of a volume button does.
+  void change(VolumeLevel to) {
+    level = to;
+    _changes.add(to);
+  }
+
+  @override
+  Future<VolumeLevel?> read() async {
+    reads++;
+    return level;
+  }
+
+  @override
+  Stream<VolumeLevel> get changes => _changes.stream;
 }

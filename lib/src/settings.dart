@@ -10,6 +10,7 @@ class Settings {
     this.bellSize = defaultBellSize,
     this.prepare = defaultPrepare,
     this.keepScreenOn = false,
+    this.lastSittingVolume,
   });
 
   /// The lengths offered as one tap on the home screen. Five, fifteen and
@@ -65,12 +66,17 @@ class Settings {
   /// the closing bell is due, so it is offered as an explicit choice.
   final bool keepScreenOn;
 
+  /// The volume, from 0.0 to 1.0, at the last sitting's opening bell. Null
+  /// until a bell has opened a sitting.
+  final double? lastSittingVolume;
+
   Settings copyWith({
     Duration? duration,
     Bell? bell,
     double? bellSize,
     Duration? prepare,
     bool? keepScreenOn,
+    double? lastSittingVolume,
   }) =>
       Settings(
         duration: duration ?? this.duration,
@@ -78,6 +84,7 @@ class Settings {
         bellSize: bellSize ?? this.bellSize,
         prepare: prepare ?? this.prepare,
         keepScreenOn: keepScreenOn ?? this.keepScreenOn,
+        lastSittingVolume: lastSittingVolume ?? this.lastSittingVolume,
       );
 
   static const String _durationKey = 'duration_minutes';
@@ -85,6 +92,7 @@ class Settings {
   static const String _bellSizeKey = 'bell_size';
   static const String _prepareKey = 'prepare_seconds';
   static const String _keepScreenOnKey = 'keep_screen_on';
+  static const String _lastSittingVolumeKey = 'last_sitting_volume';
 
   static Future<Settings> load() async {
     final preferences = await SharedPreferences.getInstance();
@@ -101,6 +109,7 @@ class Settings {
           ? defaultPrepare
           : clampPrepare(Duration(seconds: prepareSeconds)),
       keepScreenOn: preferences.getBool(_keepScreenOnKey) ?? false,
+      lastSittingVolume: _clampVolume(preferences.getDouble(_lastSittingVolumeKey)),
     );
   }
 
@@ -111,7 +120,14 @@ class Settings {
     await preferences.setDouble(_bellSizeKey, bellSize);
     await preferences.setInt(_prepareKey, prepare.inSeconds);
     await preferences.setBool(_keepScreenOnKey, keepScreenOn);
+    final volume = lastSittingVolume;
+    if (volume != null) {
+      await preferences.setDouble(_lastSittingVolumeKey, volume);
+    }
   }
+
+  static double? _clampVolume(double? volume) =>
+      volume == null || volume.isNaN ? null : volume.clamp(0.0, 1.0);
 
   static Duration clampDuration(Duration duration) {
     if (duration < minimumDuration) {

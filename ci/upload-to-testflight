@@ -1,34 +1,84 @@
 #!/usr/bin/env bash
 #
-# Hand the built .ipa to App Store Connect, which is what puts it in
-# TestFlight. Testers get it within minutes of processing finishing;
-# there is no review for internal testers, and for an external group only
-# the first build of a version is reviewed.
+# Hand the built .ipa to App Store Connect, wait for it to be processed,
+# and give it "What to Test" notes, so that a build reaches TestFlight
+# saying what changed rather than simply appearing.
 #
-# altool authenticates with an App Store Connect API key, which it looks
-# for by name in one of a few fixed directories rather than taking a
-# path. Hence writing the key out where it will be found.
+# The notes are the tag's message, and a tag without one fails before the
+# upload. local/release is the way to make a tag with a message.
+#
+# asc does the upload, the wait and the notes in one call, and fails if
+# Apple refuses the binary. It is put on the PATH by the workflow, and
+# authenticates from the three ASC_ variables alone: with no profile,
+# config path or ASC_BYPASS_KEYCHAIN set, a complete set in the
+# environment is used before anything stored.
 
 set -euo pipefail
 
 : "${APP_STORE_CONNECT_KEY_ID:?not set. See 'Releasing' in README.md}"
 : "${APP_STORE_CONNECT_ISSUER_ID:?not set. See 'Releasing' in README.md}"
 : "${APP_STORE_CONNECT_PRIVATE_KEY:?not set. See 'Releasing' in README.md}"
+: "${GITHUB_REF_NAME:?not set; this runs on a tag push}"
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
+bundle_id="tech.skagedal.jikido"
+group="Jikido Internals"
 
-keys="$HOME/.appstoreconnect/private_keys"
-mkdir -p "$keys"
-(umask 077; printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" \
-    > "$keys/AuthKey_$APP_STORE_CONNECT_KEY_ID.p8")
+# Apple's limit on "What to Test", in characters.
+notes_limit=4000
 
-ipa="$(find "$root/build/ios/ipa" -maxdepth 1 -name '*.ipa' | head -n 1)"
-[ -n "$ipa" ] || {
-    echo "upload-to-testflight: the build produced no .ipa" >&2
+die() {
+    echo "upload-to-testflight: $*" >&2
     exit 1
 }
 
+command -v asc >/dev/null 2>&1 ||
+    die "asc is not on the PATH. The 'Install asc' step in release.yml puts it there."
+
+ipa="$(find "$root/build/ios/ipa" -maxdepth 1 -name '*.ipa' | head -n 1)"
+[ -n "$ipa" ] || die "the build produced no .ipa"
+
+tag="$GITHUB_REF_NAME"
+cd "$root"
+
+# Checking out a tag can leave it lightweight locally even when it is
+# annotated on the remote, and then its message reads as empty. Fetch the
+# tag object itself.
+git fetch --quiet --force --no-tags origin "refs/tags/$tag:refs/tags/$tag"
+
+# Only an annotated tag has a message of its own. Asked for the contents
+# of a lightweight one, git answers with the commit's.
+notes=""
+if [ "$(git cat-file -t "refs/tags/$tag")" = tag ]; then
+    notes="$(git for-each-ref --format='%(contents:subject)%0a%0a%(contents:body)' "refs/tags/$tag")"
+fi
+[ -n "${notes//[[:space:]]/}" ] ||
+    die "$tag has no message to use as notes for testers. Make release tags with local/release."
+# Past the limit, Apple refuses the notes only after the upload and the
+# wait. Cutting by bytes is shorter than it need be for non-ASCII, and
+# iconv drops a character left split in two.
+notes="$(printf '%s' "$notes" | head -c "$notes_limit" | iconv -c -f UTF-8 -t UTF-8)"
+
+arguments=(
+    publish testflight
+    --app "$bundle_id"
+    --ipa "$ipa"
+    # An internal group that already gets every build, so asc skips adding
+    # it; named anyway, because asc requires a group, and a group that has
+    # gone missing should fail before the upload rather than after.
+    --group "$group"
+    --wait
+    # asc gives the upload and the processing wait together thirty minutes
+    # by default, and processing alone sometimes takes that long.
+    --timeout 50m
+    --output json --pretty
+    --test-notes "$notes" --locale en-US
+)
+printf 'upload-to-testflight: notes for testers:\n%s\n\n' "$notes" >&2
+
 echo "upload-to-testflight: uploading $(basename "$ipa")" >&2
-xcrun altool --upload-app --type ios --file "$ipa" \
-    --apiKey "$APP_STORE_CONNECT_KEY_ID" \
-    --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+ASC_KEY_ID="$APP_STORE_CONNECT_KEY_ID" \
+ASC_ISSUER_ID="$APP_STORE_CONNECT_ISSUER_ID" \
+ASC_PRIVATE_KEY="$APP_STORE_CONNECT_PRIVATE_KEY" \
+ASC_TELEMETRY_DISABLED=1 \
+    asc "${arguments[@]}"

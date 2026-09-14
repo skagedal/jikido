@@ -10,7 +10,12 @@ import UIKit
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  private var volumeChannel: VolumeChannel?
+
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "VolumeChannel") {
+      volumeChannel = VolumeChannel(messenger: registrar.messenger())
+    }
   }
 }

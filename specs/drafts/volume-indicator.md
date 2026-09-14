@@ -99,10 +99,13 @@ needed is a read and a change notification, which is a few dozen lines
 per platform. Owning them costs less than auditing a plugin's session
 handling across its upgrades.
 
-One method channel and one event channel, both named `jikido/volume`:
+A method channel, `jikido/volume`, and an event channel,
+`jikido/volume/changes`. They cannot share a name: an event channel
+listens through a method channel of its own name, and the two handlers
+would replace each other on the platform side.
 
-- `get` returns the current level as a `double` from 0.0 to 1.0, plus
-  `steps`, the number of steps on that platform, as an `int`.
+- `get` returns a map: `level`, the current level as a `double` from 0.0
+  to 1.0, and `steps`, the number of steps on that platform, as an `int`.
 - The event channel emits the same map whenever the level changes.
 
 **iOS** (`ios/Runner/VolumeChannel.swift`, registered from
@@ -110,9 +113,15 @@ One method channel and one event channel, both named `jikido/volume`:
 `engineBridge.pluginRegistry.registrar(forPlugin: "VolumeChannel")`):
 `AVAudioSession.sharedInstance().outputVolume` for `get`, and key-value
 observation of `outputVolume` for events. It reads the shared session and
-never sets its category or activates it; `outputVolume` only updates
-while the session is active, which `audio_session` makes it at startup.
-`steps` is 16.
+never sets its category or activates it. `steps` is 16.
+
+`outputVolume` only updates while the session is active, and
+`audio_session` does not make it so at startup: it configures the session,
+and just_audio activates it on the first `play()`. Until something has
+played — the keep-alive, a sitting's bell, the free-play bell — the
+reading may be stale and no change is reported. Activating it here instead
+would duck whatever else is playing the moment Jikido opens, because the
+session's options say to. See "Open questions".
 
 **Android** (`android/app/src/main/kotlin/tech/skagedal/jikido/VolumeChannel.kt`,
 registered in `MainActivity.configureFlutterEngine`):
@@ -130,9 +139,11 @@ the alarm volume while Jikido is in front.
   an abstract `Volume` with `Future<VolumeLevel?> read()` and
   `Stream<VolumeLevel> get changes`. `PlatformVolume` implements it over
   the channels, returning `null` from `read` and an empty stream when the
-  channel throws `MissingPluginException` or `PlatformException`.
-  `VolumeLevel.sameAs(other)` is the one-step comparison, and lives here
-  as plain Dart so it is tested without a device.
+  channel throws `MissingPluginException` or `PlatformException`, or
+  answers with something that is not the map.
+  `VolumeLevel.compareWith(last)` answers `silent`, `noPrevious`, `same`,
+  `louder` or `quieter`, with a difference of up to one step counting as
+  the same, and lives here as plain Dart so it is tested without a device.
 - `lib/src/settings.dart` — `lastSittingVolume`, a nullable `double`,
   persisted under its own key and carried by `copyWith`.
 - `lib/src/sitting_controller.dart` — takes a `Volume` by injection like
@@ -141,7 +152,8 @@ the alarm volume while Jikido is in front.
   level and saves it as `lastSittingVolume` without awaiting the strike
   on it. It exposes `volume` (the latest `VolumeLevel?`) and listens to
   `changes` from `initialize` until `dispose`, calling `notifyListeners`
-  on each.
+  on each. It also reads the level again in `onResumed`, since neither
+  platform reports a change made while the app was in the background.
 - `lib/src/ui/volume_indicator.dart` — the widget, taking the current
   `VolumeLevel?` and the last sitting's level, and rendering nothing for a
   null current level.
@@ -151,10 +163,14 @@ the alarm volume while Jikido is in front.
 
 `test/fakes.dart` gains `FakeVolume`, with a settable level and a
 `StreamController` for changes. Tests cover: the level at the opening
-bell is saved and a cancelled settling time saves nothing; the controller
-passes changes through; the indicator's caption for each of silent, same,
-louder and quieter and for no previous sitting; and nothing rendered when
-the level is unreadable.
+bell is saved, with and without a settling time, and neither a cancelled
+settling time nor the free-play bell saves anything; the controller
+passes changes through and reads again on resume; the comparison, step by
+step; `PlatformVolume` over a mocked channel; the indicator's caption for
+each of silent, same, louder and quieter and for no previous sitting;
+nothing rendered when the level is unreadable; and the indicator on the
+home screen and through the settling time, gone at the opening bell, and
+on the bell page.
 
 ### Documentation
 
@@ -163,6 +179,16 @@ is heard", on the indicator and on the volume buttons adjusting the
 alarm volume on Android.
 
 ## Open questions
+
+- **Whether iOS reports the right level before anything has played.**
+  See the iOS section. There are also reports of `outputVolume` coming
+  back stale after reactivating a session on iOS 18
+  ([Apple forums](https://developer.apple.com/forums/thread/799104)). This
+  needs trying on the phone: open Jikido cold, change the volume with the
+  buttons, and see whether the line moves before the bell has been struck.
+  If it does not, the choices are activating the session early after all,
+  or not showing the indicator on iOS until the session is known to be
+  active.
 
 - **Showing it during the sitting.** Hiding it after the opening bell
   follows the rule that nothing on screen during a sitting asks for

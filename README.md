@@ -95,6 +95,15 @@ On Android 12 and later the scheduled notification is only exact if the
 "Alarms & reminders" permission is granted. Jikido works without it — settings
 offers a way to grant it, and falls back to an approximate alarm otherwise.
 
+**The volume, before you sit.** The phone's volume drifts between sittings,
+and Jikido cannot set it. So the home screen, the settling time and the bell
+page show the level the bell will ring at, next to a mark for where it was at
+the last sitting's opening bell, and say whether it is louder, quieter or the
+same — or, at zero, that the bell will not be heard. On Android that is the
+alarm volume, and while Jikido is in front the side buttons adjust the alarm
+volume rather than the media volume. On iOS it is the output volume, of
+whatever the sound is going to.
+
 ## The bells
 
 The bells are synthesized on the device. A struck bowl bell is a sum of 
@@ -216,11 +225,19 @@ and [pinact](https://github.com/suzuki-shunsuke/pinact) moves the actions in
 
 ## Releasing
 
-Push a version tag and both apps ship from that commit:
+Push a version tag and both apps ship from that commit. `local/release`
+works out the next version, tags `main` with a message and pushes it:
 
 ```
-git tag v0.2.0 && git push origin v0.2.0
+./local/release patch "The volume shows before you sit."    # v0.1.0 → v0.1.1
+./local/release minor "Pausing."                            # v0.1.1 → v0.2.0
 ```
+
+The message is what testers read: it becomes the build's "What to Test"
+notes in TestFlight. It refuses unless `main` is clean and the same commit
+as `origin/main`, and asks before pushing. Tagging by hand still works as
+long as the tag is annotated with a message; the iOS job fails on a tag
+without one.
 
 `.github/workflows/release.yml` builds the Android APK and attaches it to
 the tag's GitHub release, where anyone can download it without an account
@@ -236,11 +253,14 @@ end of a long build.
 The two jobs are independent, so the APK is published even when the Apple
 side fails, and the other way round.
 
-The iOS job does not finish at the upload. A successful upload means
-Apple took the bytes, not that it took the build: a binary can be refused
-a minute later, and the only notice is an email while the API goes on
-reporting no build at all. So the job then waits for the build to show up
-in App Store Connect, and fails if it never does.
+The iOS job uploads with [`asc`](https://asccli.sh), pinned in
+`release.yml`, and does not finish at the upload. A successful upload
+means Apple took the bytes, not that it took the build: a binary can be
+refused a minute later, and the only notice is an email. So the job waits
+for App Store Connect to finish processing the build, fails if Apple
+refuses it, and then writes the notes, which cannot be attached to a build
+that does not exist yet. See `specs/drafts/testflight-upload-with-asc.md`
+for why `asc` rather than `altool`.
 
 ### Setting up the Android key
 
@@ -259,7 +279,7 @@ copy in `key.properties` is the only other one.
 
 ### Setting up the Apple side
 
-It needs the Apple Developer Program. Two things have to be done by hand
+It needs the Apple Developer Program. Three things have to be done by hand
 first, because App Store Connect has no API for either:
 
 1. **An App Store Connect API key**, under Users and Access →
@@ -268,6 +288,9 @@ first, because App Store Connect has no API for either:
    and never again. One key serves every app on the account.
 2. **The app record** for `tech.skagedal.jikido` in App Store Connect. An
    upload has nowhere to land until it exists.
+3. **The tester group** `Jikido Internals`, under TestFlight → Internal
+   Testing, with access to all builds. The upload names it, and fails
+   before uploading anything if it is not there.
 
 Then point a config file at that key and run one script:
 

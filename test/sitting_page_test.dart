@@ -4,6 +4,7 @@ import 'package:jikido/src/settings.dart';
 import 'package:jikido/src/sitting_controller.dart';
 import 'package:jikido/src/ui/sitting_page.dart';
 import 'package:jikido/src/ui/theme.dart';
+import 'package:jikido/src/volume.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fakes.dart';
@@ -13,6 +14,7 @@ void main() {
   late FakeClosingBellNotification notification;
   late FakeSittingService service;
   late FakeScreenAwake screen;
+  late FakeVolume volume;
   late TestClock clock;
   late SittingController controller;
 
@@ -22,12 +24,14 @@ void main() {
     notification = FakeClosingBellNotification();
     service = FakeSittingService();
     screen = FakeScreenAwake();
+    volume = FakeVolume();
     clock = TestClock(DateTime.utc(2026, 3, 1, 7, 0, 0));
     controller = SittingController(
       audio: audio,
       notification: notification,
       service: service,
       screen: screen,
+      volume: volume,
       clock: clock.call,
     );
   });
@@ -204,6 +208,56 @@ void main() {
     await tester.tap(find.text('End sitting'));
     await tester.pump();
     await tester.pump();
+  });
+
+  testWidgets('the volume shows before the sitting and while settling, '
+      'and goes at the opening bell', (tester) async {
+    await controller.initialize();
+    await controller.setPrepare(const Duration(seconds: 10));
+    await pumpPage(tester);
+    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+
+    await tester.tap(find.text('Sit'));
+    await tester.pump();
+    expect(controller.isPreparing, isTrue);
+    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+
+    volume.change(const VolumeLevel(level: 0, steps: 16));
+    await tester.pump();
+    expect(find.text('silent — the bell will not be heard'), findsOneWidget);
+
+    volume.change(const VolumeLevel(level: 0.5, steps: 16));
+    clock.advance(const Duration(seconds: 10));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(audio.strikes, isNotEmpty);
+    expect(find.byIcon(Icons.volume_up), findsNothing);
+
+    await tester.tap(find.text('End sitting'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('as last time'), findsOneWidget,
+        reason: 'the level at that opening bell is what is compared against');
+  });
+
+  testWidgets('no volume is shown when it cannot be read', (tester) async {
+    volume.level = null;
+    await controller.initialize();
+    await pumpPage(tester);
+    expect(find.byIcon(Icons.volume_up), findsNothing);
+    expect(find.byIcon(Icons.volume_off), findsNothing);
+    expect(find.text('Sit'), findsOneWidget);
+  });
+
+  testWidgets('the bell page shows the volume', (tester) async {
+    await controller.initialize();
+    await pumpPage(tester);
+
+    await tester.tap(find.byTooltip('Ring the bell'));
+    await tester.pumpAndSettle();
+    expect(find.text('strike'), findsOneWidget);
+    expect(find.byIcon(Icons.volume_up), findsOneWidget);
   });
 
   testWidgets('the bell can be rung on its own', (tester) async {

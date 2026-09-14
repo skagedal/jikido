@@ -100,8 +100,8 @@ trap 'rm -rf "$work"' EXIT
 
 ## Talking to App Store Connect
 
-# Shared with ci/await-testflight-build, which needs the same JWT and the
-# same error reporting. See that file for the contract this satisfies.
+# The JWT and the error reporting. See that file for the contract this
+# satisfies.
 # shellcheck source=ci/appstore-api.sh
 . "$root/ci/appstore-api.sh"
 

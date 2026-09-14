@@ -3,7 +3,10 @@ name: Release the app
 # Pushing a version tag ships both phone apps from the same commit:
 # Android as an APK on the tag's GitHub release, iOS to TestFlight.
 #
-#   git tag v0.2.0 && git push origin v0.2.0
+#   ./local/release patch "What changed, for whoever installs it."
+#
+# local/release tags the next version with that message and pushes it;
+# the message becomes the build's "What to Test" notes in TestFlight.
 #
 # The tag is the only place the version is written. pubspec.yaml's
 # version is what a local build gets and nothing more; the build name and
@@ -101,6 +104,12 @@ jobs:
         with:
           flutter-version-file: .fvmrc
           cache: true
+      # Pinned to an exact release, which the action checks against the
+      # release's SHA-256 sums. asc releases often; move it deliberately.
+      - name: Install asc
+        uses: rudrankriyam/setup-asc@5358c70a27a3f0d1517604b0f1fdc43e70c1cc4d # v1.0.1
+        with:
+          version: 5.3.0
       - name: Make ci scripts executable
         run: chmod +x ci/*
       - name: Set up signing
@@ -120,18 +129,13 @@ jobs:
             --build-name="$VERSION" \
             --build-number="$BUILD" \
             --export-options-plist="$JIKIDO_EXPORT_OPTIONS"
+      # Waits for Apple to finish processing the build, which is what makes
+      # a green job mean an accepted build rather than an upload. The limit
+      # here is a backstop for the one upload-to-testflight gives asc.
       - name: Upload to TestFlight
+        timeout-minutes: 60
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
         run: ./ci/upload-to-testflight
-      # A successful upload is not an accepted build. Without this step
-      # the job goes green on a binary Apple refused a minute later and
-      # only mentioned by email.
-      - name: Wait for App Store Connect to accept it
-        env:
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-        run: ./ci/await-testflight-build

@@ -1,5 +1,4 @@
-# Sourced, never run. App Store Connect's API, for the two scripts that
-# talk to it: local/make-ios-signing and ci/await-testflight-build.
+# Sourced, never run. App Store Connect's API, for local/make-ios-signing.
 #
 # Before sourcing this, a caller must have set:
 #
