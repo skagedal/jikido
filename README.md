@@ -216,11 +216,19 @@ and [pinact](https://github.com/suzuki-shunsuke/pinact) moves the actions in
 
 ## Releasing
 
-Push a version tag and both apps ship from that commit:
+Push a version tag and both apps ship from that commit. `local/release`
+works out the next version, tags `main` with a message and pushes it:
 
 ```
-git tag v0.2.0 && git push origin v0.2.0
+./local/release "The volume shows before you sit."    # v0.1.0 → v0.1.1
+./local/release minor "Pausing."                      # v0.1.1 → v0.2.0
 ```
+
+The message is what testers read: it becomes the build's "What to Test"
+notes in TestFlight. It refuses unless `main` is clean and the same commit
+as `origin/main`, and asks before pushing. Tagging by hand still works; a
+tag with no message gets the commit subjects since the previous tag as its
+notes instead.
 
 `.github/workflows/release.yml` builds the Android APK and attaches it to
 the tag's GitHub release, where anyone can download it without an account
@@ -236,11 +244,14 @@ end of a long build.
 The two jobs are independent, so the APK is published even when the Apple
 side fails, and the other way round.
 
-The iOS job does not finish at the upload. A successful upload means
-Apple took the bytes, not that it took the build: a binary can be refused
-a minute later, and the only notice is an email while the API goes on
-reporting no build at all. So the job then waits for the build to show up
-in App Store Connect, and fails if it never does.
+The iOS job uploads with [`asc`](https://asccli.sh), pinned in
+`release.yml`, and does not finish at the upload. A successful upload
+means Apple took the bytes, not that it took the build: a binary can be
+refused a minute later, and the only notice is an email. So the job waits
+for App Store Connect to finish processing the build, fails if Apple
+refuses it, and then writes the notes, which cannot be attached to a build
+that does not exist yet. See `specs/drafts/testflight-upload-with-asc.md`
+for why `asc` rather than `altool`.
 
 ### Setting up the Android key
 
@@ -259,7 +270,7 @@ copy in `key.properties` is the only other one.
 
 ### Setting up the Apple side
 
-It needs the Apple Developer Program. Two things have to be done by hand
+It needs the Apple Developer Program. Three things have to be done by hand
 first, because App Store Connect has no API for either:
 
 1. **An App Store Connect API key**, under Users and Access →
@@ -268,6 +279,9 @@ first, because App Store Connect has no API for either:
    and never again. One key serves every app on the account.
 2. **The app record** for `tech.skagedal.jikido` in App Store Connect. An
    upload has nowhere to land until it exists.
+3. **The tester group** `Jikido Internals`, under TestFlight → Internal
+   Testing, with access to all builds. The upload names it, and fails
+   before uploading anything if it is not there.
 
 Then point a config file at that key and run one script:
 
