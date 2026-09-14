@@ -3,7 +3,7 @@ name: Release the app
 # Pushing a version tag ships both phone apps from the same commit:
 # Android as an APK on the tag's GitHub release, iOS to TestFlight.
 #
-#   ./local/release "What changed, for whoever installs it."
+#   ./local/release patch "What changed, for whoever installs it."
 #
 # local/release tags the next version with that message and pushes it;
 # the message becomes the build's "What to Test" notes in TestFlight.
@@ -100,10 +100,6 @@ jobs:
       BUILD: ${{ needs.version.outputs.build }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # The notes for testers are the tag's message, or failing that the
-          # commits since the previous tag; neither is in a shallow clone.
-          fetch-depth: 0
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version-file: .fvmrc

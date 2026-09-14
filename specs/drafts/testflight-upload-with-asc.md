@@ -58,7 +58,7 @@ nothing to commit before releasing, and still one thing to get right.
 A release becomes one command, `local/release`, which works out the next
 version itself and writes the message into an annotated tag:
 
-    ./local/release "The volume shows before you sit."
+    ./local/release patch "The volume shows before you sit."
     ./local/release minor "Pausing."
 
 Tagging by hand keeps working; the script exists so that the version
@@ -68,10 +68,10 @@ A `CHANGELOG.md` would have to be edited and committed before the tag,
 which trades the one-command release for a two-step one. Commit subjects
 are written for `git log`, not for whoever installs the build.
 
-So: the tag message, falling back to the commit subjects since the
-previous `v` tag when the tag is lightweight or its message is blank. The
-fallback exists because the failure it prevents — a forgotten `-a`, and a
-build that appears silently again — is exactly the one being fixed.
+So: the tag message, and only the tag message. A lightweight tag, or one
+whose message is blank, fails the iOS job before the upload rather than
+shipping a build that appears silently. Not falling back to commits also
+means the checkout can stay shallow.
 
 ### Which group
 
@@ -104,9 +104,8 @@ deleted or renamed fails the job before the binary goes anywhere.
 - **The upload succeeds and the notes do not.** The build is live and the
   step fails. `asc` prints the command that retries the notes against the
   build it reached.
-- **No tag message and no commits since the last tag.** Nothing sensible
-  to say, so nothing is said: the notes flags are omitted and the rest of
-  the release proceeds.
+- **No tag message.** The step fails before uploading, pointing at
+  `local/release`. The Android job is independent and still publishes.
 - **The group does not exist.** The step fails before uploading, naming
   the group.
 
@@ -206,12 +205,8 @@ for `%(contents)` of a lightweight tag, git answers with the *commit's*
 message, so the type is checked first with `git cat-file -t`. The tag is
 also fetched explicitly with `--force` before it is read, since a checkout
 of a tag ref can leave a lightweight copy locally where the remote has an
-annotated one.
-
-The previous tag, for the fallback, is `git describe --tags --abbrev=0
---match 'v*' --exclude "$tag" "$tag"`: the nearest other version tag,
-including one on the same commit, so a second tag on an unchanged commit
-has no commits to describe and gets no notes.
+annotated one. That fetch names the tag, so it works in a shallow clone.
+A tag with no message fails here, before the upload.
 
 The notes are cut to 4000 bytes, Apple's limit in characters, because
 `publish testflight` validates only the locale and an over-long note
@@ -223,11 +218,10 @@ Then one call:
     asc publish testflight \
         --app "$bundle_id" --ipa "$ipa" --group "$group" \
         --wait --timeout 50m --output json --pretty \
-        [--test-notes "$notes" --locale en-US]
+        --test-notes "$notes" --locale en-US
 
 with the three `ASC_` variables and `ASC_TELEMETRY_DISABLED=1` in the
-environment of that command alone. The notes flags are left off entirely
-when there are none. `--notify` and `--submit --confirm` are left off:
+environment of that command alone. `--notify` and `--submit --confirm` are left off:
 with only an internal all-builds group there is nothing for either to do.
 
 `--timeout` is there because `publish` runs the upload, the wait for the
@@ -238,8 +232,6 @@ minutes by default.
 
 `.github/workflows/release.yml`, the iOS job:
 
-- The checkout gains `fetch-depth: 0`, since neither the tag message nor
-  the previous tag is in a shallow clone.
 - An `Install asc` step, before signing:
 
       - name: Install asc
@@ -256,9 +248,9 @@ The comment at the top of the workflow shows `./local/release`.
 
 ### `local/release`
 
-    ./local/release [major|minor|patch] [--yes] <message>
+    ./local/release major|minor|patch <message> [--yes]
 
-The bump defaults to `patch`, and the message is required. It refuses
+The bump and the message are both required. It refuses
 unless the current branch is `main`, the working tree is clean, and `main`
 is the same commit as `origin/main` after a fetch.
 
@@ -291,11 +283,7 @@ separate change.
 Found while implementing here, and worth carrying back:
 
 - `git tag -l --format='%(contents)'` is **not** empty for a lightweight
-  tag; it is the commit message. The draft's fallback would never have
-  run for a tag made without `-a`.
-- `git describe ... "$tag^"` looks for the previous tag from the parent
-  commit, so for two tags on one commit it finds the tag before both, and
-  the second repeats the first's notes. `--exclude "$tag" "$tag"` does not.
+  tag; it is the commit message. Check `git cat-file -t` first.
 - A group named in `--group` that is internal with access to all builds is
   skipped by `asc` for builds it uploaded, not an error.
 - `publish testflight` does have a limit on the wait: the whole command

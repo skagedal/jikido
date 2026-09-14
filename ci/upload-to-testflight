@@ -4,10 +4,8 @@
 # and give it "What to Test" notes, so that a build reaches TestFlight
 # saying what changed rather than simply appearing.
 #
-# The notes are the tag's message. A lightweight tag, or an annotated one
-# with nothing in it, gets the commit subjects since the previous version
-# tag instead: a floor, so that a forgotten -a does not ship a silent
-# build. local/release is the way to make a tag with a message.
+# The notes are the tag's message, and a tag without one fails before the
+# upload. local/release is the way to make a tag with a message.
 #
 # asc does the upload, the wait and the notes in one call, and fails if
 # Apple refuses the binary. It is put on the PATH by the workflow, and
@@ -54,10 +52,8 @@ notes=""
 if [ "$(git cat-file -t "refs/tags/$tag")" = tag ]; then
     notes="$(git for-each-ref --format='%(contents:subject)%0a%0a%(contents:body)' "refs/tags/$tag")"
 fi
-if [ -z "${notes//[[:space:]]/}" ]; then
-    previous="$(git describe --tags --abbrev=0 --match 'v*' --exclude "$tag" "$tag" 2>/dev/null || true)"
-    notes="$(git log --no-merges --format='- %s' "${previous:+$previous..}$tag")"
-fi
+[ -n "${notes//[[:space:]]/}" ] ||
+    die "$tag has no message to use as notes for testers. Make release tags with local/release."
 # Past the limit, Apple refuses the notes only after the upload and the
 # wait. Cutting by bytes is shorter than it need be for non-ASCII, and
 # iconv drops a character left split in two.
@@ -76,13 +72,9 @@ arguments=(
     # by default, and processing alone sometimes takes that long.
     --timeout 50m
     --output json --pretty
+    --test-notes "$notes" --locale en-US
 )
-if [ -n "${notes//[[:space:]]/}" ]; then
-    arguments+=(--test-notes "$notes" --locale en-US)
-    printf 'upload-to-testflight: notes for testers:\n%s\n\n' "$notes" >&2
-else
-    echo "upload-to-testflight: no tag message and no commits to describe; no notes" >&2
-fi
+printf 'upload-to-testflight: notes for testers:\n%s\n\n' "$notes" >&2
 
 echo "upload-to-testflight: uploading $(basename "$ipa")" >&2
 ASC_KEY_ID="$APP_STORE_CONNECT_KEY_ID" \

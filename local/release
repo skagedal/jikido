@@ -2,14 +2,14 @@
 #
 # Cut a release: tag the next version with a message, and push the tag.
 #
-#   ./local/release "The volume shows before you sit."
+#   ./local/release patch "The volume shows before you sit."
 #   ./local/release minor "Pausing."
-#   ./local/release major --yes "Everything is different."
+#   ./local/release major "Everything is different." --yes
 #
-# The bump is patch unless named. The message is required, because it is
-# what testers read: it becomes the build's "What to Test" notes in
-# TestFlight. Pushing the tag is what starts .github/workflows/release.yml,
-# so it asks first unless given --yes.
+# Both the bump and the message are required. The message is what testers
+# read: it becomes the build's "What to Test" notes in TestFlight. Pushing
+# the tag is what starts .github/workflows/release.yml, so it asks first
+# unless given --yes.
 
 set -euo pipefail
 
@@ -21,24 +21,26 @@ die() {
 }
 
 usage() {
-    die "usage: local/release [major|minor|patch] [--yes] <message>"
+    die "usage: local/release major|minor|patch <message> [--yes]"
 }
 
-bump="patch"
 assume_yes=false
-message=""
+positional=()
 while [ $# -gt 0 ]; do
     case "$1" in
-        major | minor | patch) bump="$1" ;;
         --yes | -y) assume_yes=true ;;
         -*) usage ;;
-        *)
-            [ -z "$message" ] || usage
-            message="$1"
-            ;;
+        *) positional+=("$1") ;;
     esac
     shift
 done
+[ "${#positional[@]}" -eq 2 ] || usage
+bump="${positional[0]}"
+message="${positional[1]}"
+case "$bump" in
+    major | minor | patch) ;;
+    *) usage ;;
+esac
 [ -n "${message//[[:space:]]/}" ] || usage
 
 cd "$root"

@@ -229,15 +229,15 @@ Push a version tag and both apps ship from that commit. `local/release`
 works out the next version, tags `main` with a message and pushes it:
 
 ```
-./local/release "The volume shows before you sit."    # v0.1.0 → v0.1.1
-./local/release minor "Pausing."                      # v0.1.1 → v0.2.0
+./local/release patch "The volume shows before you sit."    # v0.1.0 → v0.1.1
+./local/release minor "Pausing."                            # v0.1.1 → v0.2.0
 ```
 
 The message is what testers read: it becomes the build's "What to Test"
 notes in TestFlight. It refuses unless `main` is clean and the same commit
-as `origin/main`, and asks before pushing. Tagging by hand still works; a
-tag with no message gets the commit subjects since the previous tag as its
-notes instead.
+as `origin/main`, and asks before pushing. Tagging by hand still works as
+long as the tag is annotated with a message; the iOS job fails on a tag
+without one.
 
 `.github/workflows/release.yml` builds the Android APK and attaches it to
 the tag's GitHub release, where anyone can download it without an account
