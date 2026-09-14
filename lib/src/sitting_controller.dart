@@ -269,6 +269,14 @@ class SittingController extends ChangeNotifier {
     bool stillSitting() =>
         _status == SittingStatus.running && _sittingCount == sitting;
 
+    // Not awaited, and not queued behind the audio: a strike or a keep-alive
+    // that takes its time must not leave the screen to go dark, and the bell
+    // should not wait on the screen either. Teardown's release is sent after
+    // this, so it still wins.
+    if (_settings.keepScreenOn) {
+      unawaited(_engage(() => _screen.set(enabled: true)));
+    }
+
     // Ring first — unless there is settling time to sit through, in which
     // case the ticker rings it when it comes due. Everything below is
     // housekeeping, and a user who pressed a button expecting a bell should
@@ -282,10 +290,6 @@ class SittingController extends ChangeNotifier {
       return;
     }
     await _engage(() => _audio.startKeepAlive());
-
-    if (_settings.keepScreenOn && stillSitting()) {
-      await _engage(() => _screen.set(enabled: true));
-    }
 
     if (!stillSitting()) {
       return;
@@ -431,8 +435,15 @@ class SittingController extends ChangeNotifier {
   ///
   /// Timers do not necessarily run while an app is suspended, so the first
   /// thing to do on the way back is ask the clock what was missed.
+  ///
+  /// The wakelock is asserted again too. It is cheap, and a platform that let
+  /// go of it while the app was away would otherwise leave the screen to go
+  /// dark for the rest of the sitting.
   void onResumed() {
     if (_status == SittingStatus.running) {
+      if (_settings.keepScreenOn) {
+        unawaited(_engage(() => _screen.set(enabled: true)));
+      }
       _tick();
     }
   }

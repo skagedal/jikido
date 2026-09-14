@@ -122,6 +122,97 @@ void main() {
     });
   });
 
+  group('keeping the screen on', () {
+    test('holds the screen awake for the sitting, and lets it go after', () {
+      fakeAsync((async) {
+        final controller = makeController()
+          ..setKeepScreenOn(true)
+          ..setDuration(const Duration(minutes: 5));
+        async.flushMicrotasks();
+        expect(screen.awake, isFalse, reason: 'only a sitting keeps it on');
+
+        controller.start();
+        async.flushMicrotasks();
+        expect(screen.awake, isTrue);
+
+        controller.cancel();
+        async.flushMicrotasks();
+        expect(screen.awake, isFalse);
+
+        controller.dispose();
+      });
+    });
+
+    test('is not held up by the audio layers', () {
+      fakeAsync((async) {
+        // The keep-alive holding the rest of setup until the sitting was over
+        // is how the screen used to go dark with the setting on.
+        audio.keepAliveBlocks = true;
+        final controller = makeController()..setKeepScreenOn(true);
+        async.flushMicrotasks();
+        controller.start();
+        async.flushMicrotasks();
+
+        expect(screen.awake, isTrue);
+
+        controller.cancel();
+        async.flushMicrotasks();
+        controller.dispose();
+      });
+    });
+
+    test('is held during the settling time', () {
+      fakeAsync((async) {
+        final controller = makeController(prepare: const Duration(minutes: 1))
+          ..setKeepScreenOn(true);
+        async.flushMicrotasks();
+        controller.start();
+        async.flushMicrotasks();
+
+        expect(controller.isPreparing, isTrue);
+        expect(screen.awake, isTrue);
+
+        controller.cancel();
+        async.flushMicrotasks();
+        controller.dispose();
+      });
+    });
+
+    test('is asserted again when the app comes back', () {
+      fakeAsync((async) {
+        final controller = makeController()..setKeepScreenOn(true);
+        controller.start();
+        async.flushMicrotasks();
+
+        // The platform may let go of it while the app is away.
+        screen.awake = false;
+        controller.onResumed();
+        async.flushMicrotasks();
+        expect(screen.awake, isTrue);
+
+        controller.cancel();
+        async.flushMicrotasks();
+        controller.dispose();
+      });
+    });
+
+    test('is left alone on return when the setting is off', () {
+      fakeAsync((async) {
+        final controller = makeController();
+        controller.start();
+        async.flushMicrotasks();
+        controller.onResumed();
+        async.flushMicrotasks();
+
+        expect(screen.setCalls, everyElement(isFalse));
+
+        controller.cancel();
+        async.flushMicrotasks();
+        controller.dispose();
+      });
+    });
+  });
+
   test('ending early while setup is still under way arms no backstop', () {
     fakeAsync((async) {
       service.startBlocker = Completer<void>();

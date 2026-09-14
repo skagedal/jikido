@@ -195,10 +195,12 @@ class FakeSittingService implements SittingService {
 
 class FakeScreenAwake implements ScreenAwake {
   bool awake = false;
+  final List<bool> setCalls = <bool>[];
 
   @override
   Future<void> set({required bool enabled}) async {
     awake = enabled;
+    setCalls.add(enabled);
   }
 }
 
