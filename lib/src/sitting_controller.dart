@@ -9,6 +9,7 @@ import 'bell.dart';
 import 'screen_awake.dart';
 import 'session.dart';
 import 'settings.dart';
+import 'volume.dart';
 
 enum SittingStatus {
   /// No sitting in progress; the user is choosing a length.
@@ -34,17 +35,20 @@ class SittingController extends ChangeNotifier {
     ClosingBellNotification? notification,
     SittingService? service,
     ScreenAwake? screen,
+    Volume? volume,
     DateTime Function()? clock,
   })  : _audio = audio ?? BellAudio(),
         _notification = notification ?? ClosingBellNotification(),
         _service = service ?? const SittingService(),
         _screen = screen ?? const ScreenAwake(),
+        _volumeReader = volume ?? const PlatformVolume(),
         _now = clock ?? DateTime.now;
 
   final BellAudio _audio;
   final ClosingBellNotification _notification;
   final SittingService _service;
   final ScreenAwake _screen;
+  final Volume _volumeReader;
 
   /// Where the time comes from. Injectable so that the one piece of logic
   /// that must never be wrong — striking the closing bell when it is due —
@@ -69,6 +73,13 @@ class SittingController extends ChangeNotifier {
   int _sittingCount = 0;
   String? _notice;
   int _notifiedMinutesLeft = _unwritten;
+
+  /// The volume the bell will ring at, kept current while the app is open.
+  /// Null when the platform will not say, in which case nothing about the
+  /// volume is shown.
+  VolumeLevel? get volume => _volume;
+  VolumeLevel? _volume;
+  StreamSubscription<VolumeLevel>? _volumeChanges;
 
   Settings get settings => _settings;
   SittingStatus get status => _status;
@@ -119,6 +130,11 @@ class SittingController extends ChangeNotifier {
   String? _initializationError;
 
   Future<void> initialize() async {
+    _volumeChanges ??= _volumeReader.changes.listen((level) {
+      _volume = level;
+      notifyListeners();
+    });
+    unawaited(_refreshVolume());
     try {
       _settings = await Settings.load();
       _service.configure();
@@ -285,6 +301,7 @@ class SittingController extends ChangeNotifier {
       _openingBellStruck = true;
       await _engage(() => _audio.strike(
           session.bell, session.bellSize, BellSequence.opening));
+      _recordVolume();
     }
     if (!stillSitting()) {
       return;
@@ -327,6 +344,28 @@ class SittingController extends ChangeNotifier {
           sittingLength: session.duration,
         ),
       );
+
+  Future<void> _refreshVolume() async {
+    final level = await _volumeReader.read();
+    if (!_disposed && level != _volume) {
+      _volume = level;
+      notifyListeners();
+    }
+  }
+
+  /// Remembers the level an opening bell rang at, as what the next sitting
+  /// is compared against. Only a bell that rang counts, so this is called
+  /// where one is struck and nowhere else.
+  void _recordVolume() {
+    unawaited(_engage(() async {
+      final level = await _volumeReader.read();
+      if (level == null) {
+        return;
+      }
+      _settings = _settings.copyWith(lastSittingVolume: level.level);
+      await _settings.save();
+    }));
+  }
 
   /// Engages one layer, and carries on if it throws.
   ///
@@ -438,8 +477,11 @@ class SittingController extends ChangeNotifier {
   ///
   /// The wakelock is asserted again too. It is cheap, and a platform that let
   /// go of it while the app was away would otherwise leave the screen to go
-  /// dark for the rest of the sitting.
+  /// dark for the rest of the sitting. The volume is read again as well: it
+  /// may have been changed while the app was away, where no change is
+  /// reported.
   void onResumed() {
+    unawaited(_refreshVolume());
     if (_status == SittingStatus.running) {
       if (_settings.keepScreenOn) {
         unawaited(_engage(() => _screen.set(enabled: true)));
@@ -464,6 +506,7 @@ class SittingController extends ChangeNotifier {
       if (!session.openingBellIsStaleAt(now)) {
         unawaited(_audio.strike(
             session.bell, session.bellSize, BellSequence.opening));
+        _recordVolume();
       }
     }
 
@@ -557,10 +600,14 @@ class SittingController extends ChangeNotifier {
     };
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     _bellReload?.cancel();
     _ticker?.cancel();
+    unawaited(_volumeChanges?.cancel());
     unawaited(_audio.dispose());
     super.dispose();
   }

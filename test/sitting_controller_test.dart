@@ -8,6 +8,7 @@ import 'package:jikido/src/audio/bell_audio.dart';
 import 'package:jikido/src/bell.dart';
 import 'package:jikido/src/settings.dart';
 import 'package:jikido/src/sitting_controller.dart';
+import 'package:jikido/src/volume.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fakes.dart';
@@ -19,6 +20,7 @@ void main() {
   late FakeClosingBellNotification notification;
   late FakeSittingService service;
   late FakeScreenAwake screen;
+  late FakeVolume volume;
   late TestClock clock;
 
   /// A controller with no settling time, which is what most of these tests
@@ -30,6 +32,7 @@ void main() {
       notification: notification,
       service: service,
       screen: screen,
+      volume: volume,
       clock: clock.call,
     );
     // Applies to _settings before it awaits anything, so the value is in
@@ -44,6 +47,7 @@ void main() {
     notification = FakeClosingBellNotification();
     service = FakeSittingService();
     screen = FakeScreenAwake();
+    volume = FakeVolume();
     clock = TestClock(DateTime.utc(2026, 3, 1, 7, 0, 0));
   });
 
@@ -208,6 +212,119 @@ void main() {
 
         controller.cancel();
         async.flushMicrotasks();
+        controller.dispose();
+      });
+    });
+  });
+
+  group('the volume', () {
+    test('is read when the controller starts, and follows changes', () {
+      fakeAsync((async) {
+        final controller = makeController()..initialize();
+        async.flushMicrotasks();
+        expect(controller.volume, const VolumeLevel(level: 0.5, steps: 16));
+
+        var notified = 0;
+        controller.addListener(() => notified++);
+        volume.change(const VolumeLevel(level: 0.75, steps: 16));
+        async.flushMicrotasks();
+        expect(controller.volume, const VolumeLevel(level: 0.75, steps: 16));
+        expect(notified, 1);
+
+        controller.dispose();
+      });
+    });
+
+    test('is read again when the app comes back', () {
+      fakeAsync((async) {
+        final controller = makeController()..initialize();
+        async.flushMicrotasks();
+
+        // Changed while the app was away, where no change is reported.
+        volume.level = const VolumeLevel(level: 0.125, steps: 16);
+        controller.onResumed();
+        async.flushMicrotasks();
+        expect(controller.volume, const VolumeLevel(level: 0.125, steps: 16));
+
+        controller.dispose();
+      });
+    });
+
+    test('is unknown when the platform will not say', () {
+      fakeAsync((async) {
+        volume.level = null;
+        final controller = makeController()..initialize();
+        async.flushMicrotasks();
+        expect(controller.volume, isNull);
+
+        controller.dispose();
+      });
+    });
+
+    test('at the opening bell is remembered', () {
+      fakeAsync((async) {
+        volume.level = const VolumeLevel(level: 0.625, steps: 16);
+        final controller = makeController();
+        controller.start();
+        async.flushMicrotasks();
+
+        expect(audio.sequences, [BellSequence.opening]);
+        expect(controller.settings.lastSittingVolume, 0.625);
+
+        controller.cancel();
+        async.flushMicrotasks();
+        controller.dispose();
+      });
+    });
+
+    test('is remembered when the settling time ends in a bell', () {
+      fakeAsync((async) {
+        final controller = makeController(prepare: const Duration(seconds: 30));
+        controller.start();
+        async.flushMicrotasks();
+        expect(controller.settings.lastSittingVolume, isNull,
+            reason: 'no bell has rung yet');
+
+        volume.level = const VolumeLevel(level: 0.375, steps: 16);
+        for (var i = 0; i < 31 * 5; i++) {
+          clock.advance(const Duration(milliseconds: 200));
+          async.elapse(const Duration(milliseconds: 200));
+        }
+
+        expect(audio.sequences, [BellSequence.opening]);
+        expect(controller.settings.lastSittingVolume, 0.375);
+
+        controller.cancel();
+        async.flushMicrotasks();
+        controller.dispose();
+      });
+    });
+
+    test('is not remembered for a sitting ended while settling', () {
+      fakeAsync((async) {
+        final controller = makeController(prepare: const Duration(minutes: 1));
+        controller.start();
+        async.flushMicrotasks();
+        clock.advance(const Duration(seconds: 20));
+        async.elapse(const Duration(seconds: 20));
+
+        controller.cancel();
+        async.flushMicrotasks();
+
+        expect(audio.strikes, isEmpty);
+        expect(controller.settings.lastSittingVolume, isNull);
+        controller.dispose();
+      });
+    });
+
+    test('is not remembered for the free-play bell', () {
+      fakeAsync((async) {
+        final controller = makeController();
+        controller.strikeBell();
+        async.flushMicrotasks();
+
+        expect(audio.taps, 1);
+        expect(controller.settings.lastSittingVolume, isNull);
         controller.dispose();
       });
     });

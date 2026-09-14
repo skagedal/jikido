@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../sitting_controller.dart';
 import 'enso.dart';
 import 'theme.dart';
+import 'volume_indicator.dart';
 
 /// The bell on its own, with no sitting attached.
 ///
@@ -34,6 +35,16 @@ class BellPage extends StatelessWidget {
             listenable: controller,
             builder: (context, _) => Column(
               children: [
+                // Striking the bell on its own is how someone checks how
+                // loud it is.
+                if (controller.volume != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                    child: VolumeIndicator(
+                      volume: controller.volume,
+                      lastSitting: controller.settings.lastSittingVolume,
+                    ),
+                  ),
                 Expanded(
                   flex: 3,
                   child: _Strike(controller: controller),
