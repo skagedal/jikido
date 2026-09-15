@@ -301,7 +301,6 @@ class SittingController extends ChangeNotifier {
       _openingBellStruck = true;
       await _engage(() => _audio.strike(
           session.bell, session.bellSize, BellSequence.opening));
-      _recordVolume();
     }
     if (!stillSitting()) {
       return;
@@ -351,20 +350,6 @@ class SittingController extends ChangeNotifier {
       _volume = level;
       notifyListeners();
     }
-  }
-
-  /// Remembers the level an opening bell rang at, as what the next sitting
-  /// is compared against. Only a bell that rang counts, so this is called
-  /// where one is struck and nowhere else.
-  void _recordVolume() {
-    unawaited(_engage(() async {
-      final level = await _volumeReader.read();
-      if (level == null) {
-        return;
-      }
-      _settings = _settings.copyWith(lastSittingVolume: level.level);
-      await _settings.save();
-    }));
   }
 
   /// Engages one layer, and carries on if it throws.
@@ -506,7 +491,6 @@ class SittingController extends ChangeNotifier {
       if (!session.openingBellIsStaleAt(now)) {
         unawaited(_audio.strike(
             session.bell, session.bellSize, BellSequence.opening));
-        _recordVolume();
       }
     }
 

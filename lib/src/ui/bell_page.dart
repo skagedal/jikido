@@ -29,22 +29,25 @@ class BellPage extends StatelessWidget {
             'BELL',
             style: TextStyle(letterSpacing: 6, fontSize: 14),
           ),
+          actions: [
+            // Striking the bell on its own is how someone checks how loud it
+            // is.
+            ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Center(
+                  child: VolumeIndicator(volume: controller.volume),
+                ),
+              ),
+            ),
+          ],
         ),
         body: SafeArea(
           child: ListenableBuilder(
             listenable: controller,
             builder: (context, _) => Column(
               children: [
-                // Striking the bell on its own is how someone checks how
-                // loud it is.
-                if (controller.volume != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                    child: VolumeIndicator(
-                      volume: controller.volume,
-                      lastSitting: controller.settings.lastSittingVolume,
-                    ),
-                  ),
                 Expanded(
                   flex: 3,
                   child: _Strike(controller: controller),

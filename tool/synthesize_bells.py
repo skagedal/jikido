@@ -108,10 +108,21 @@ DAMPED_TAU = 0.05
 
 SAMPLE_RATE = 32000
 
-# The longest ring worth rendering. A keisu at the largest size decays over
-# 26 seconds, and the 2.5 of those a full ring wants is more than a minute of
-# audio for a bell that is 20 dB down before half of it has played.
-MAX_TAIL_SECONDS = 30.0
+# How many decay times a bell left to ring is rendered for: 60 dB down, which
+# is where a real one fades into the room. An inkin rings on for fourteen
+# seconds, and stopping much short of that is heard as the bell being muted
+# rather than dying away.
+RING_OUT_TAUS = math.log(1000)
+
+# The longest ring worth rendering. A keisu rings out over a minute and a
+# half, and at the largest size over three, for a bell that is 40 dB down
+# before the last of it has played.
+MAX_TAIL_SECONDS = 60.0
+
+# The fade at the end of a rendering covers this much of the tail. Long enough
+# that a tail cut short by `MAX_TAIL_SECONDS` still dies away rather than
+# stopping; for one that has rung out there is nothing left to fade.
+FADE_FRACTION = 0.25
 
 
 class Noise:
@@ -301,9 +312,10 @@ def render_sequence(
             _damp(out, int((strike.at + strike.damp_after) * sample_rate),
                   sample_rate)
 
-    # Fade the last half second so the file cannot end on a discontinuity.
-    fade = int(sample_rate * 0.5)
-    for n in range(min(fade, total)):
+    # Fade the end so the file cannot stop on a discontinuity, or on a bell
+    # still audibly ringing.
+    fade = min(int(sample_rate * max(0.5, tail_seconds * FADE_FRACTION)), total)
+    for n in range(fade):
         out[total - fade + n] *= 1.0 - n / fade
 
     if normalize:
@@ -371,7 +383,7 @@ def sequence_seconds(voice: Voice, strikes: list[Strike]) -> float:
     if final:
         # Eight time constants is 70 dB down, which is silence.
         return max(final) + DAMPED_TAU * 8
-    return last_strike + min(voice.dominant_tau * 2.5, MAX_TAIL_SECONDS)
+    return last_strike + min(voice.dominant_tau * RING_OUT_TAUS, MAX_TAIL_SECONDS)
 
 
 def strike_interval(voice: Voice) -> float:
