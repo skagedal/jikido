@@ -12,7 +12,7 @@ bell.
 Jikido cannot set the volume on iOS, and should not set it on Android
 either: the buttons on the side of the phone are the control people
 already know. What it can do is show the level, live, before the sitting
-starts, next to where it was the last time you sat.
+starts.
 
 ## Functionality
 
@@ -37,51 +37,32 @@ that is where the bell will ring.
 
 ### Where it is shown
 
-On the home screen, while no sitting is running, between the ensō and
-the row of lengths. And during the settling time, in the same place,
+On the home screen, while no sitting is running, in the top left corner.
+And during the settling time, in the same place,
 because that is when someone who has just pressed Sit notices the phone
 is on silent-ish and reaches for the buttons. Once the opening bell has
 rung it goes — nothing on screen during a sitting should ask to be looked
 at, and the opening bell has by then answered the question more directly
-than a bar can.
+than a number can.
 
-On the bell page too, along its top edge, since striking the bell on its
+On the bell page too, in the top right corner, since striking the bell on its
 own is exactly how someone checks how loud it is.
 
 It is not in the notification shade and not on the completion screen.
 
 ### What it looks like
 
-A thin horizontal line, the width of the preset row, in the faded grey
-the other quiet controls use, with the part up to the current level
-drawn in paper white. A small speaker glyph sits at its left.
+Just the number: **50%**, small, in the faded grey the other quiet
+controls use. At zero it is vermilion, since then the bell will not be
+heard.
 
-A short vertical tick marks the level at the last sitting's opening bell.
-When the current level is within one step of the tick — Android has
-fifteen or so steps; on iOS a step is one press of a volume button,
-1/16 — the caption beneath reads **as last time**. Otherwise it reads
-**louder than last time** or **quieter than last time**. Before any
-sitting has been recorded there is no tick and no caption.
-
-At zero the line is empty, the glyph is the muted speaker, and the
-caption reads **silent — the bell will not be heard** in vermilion,
-whatever last time was. That is the one state worth raising a voice
-about.
-
-It moves live when the volume buttons are pressed, without a tap or a
+It changes live when the volume buttons are pressed, without a tap or a
 redraw of anything else.
-
-### What counts as "last time"
-
-The level is recorded when an opening bell is struck, and only then: a
-sitting that was cancelled during the settling time did not ring a bell
-at that level, and neither did the free-play bell. It is one number,
-kept with the other settings, and overwritten each time.
 
 ### When the level cannot be read
 
 If the platform will not say — an emulator, a simulator, a platform
-channel that throws — the indicator is not shown at all. A bar stuck at
+channel that throws — the indicator is not shown at all. A number stuck at
 zero or at some default would be a confident wrong answer, which is worse
 than no answer, and the rest of the app is unaffected.
 
@@ -141,33 +122,21 @@ the alarm volume while Jikido is in front.
   the channels, returning `null` from `read` and an empty stream when the
   channel throws `MissingPluginException` or `PlatformException`, or
   answers with something that is not the map.
-  `VolumeLevel.compareWith(last)` answers `silent`, `noPrevious`, `same`,
-  `louder` or `quieter`, with a difference of up to one step counting as
-  the same, and lives here as plain Dart so it is tested without a device.
-- `lib/src/settings.dart` — `lastSittingVolume`, a nullable `double`,
-  persisted under its own key and carried by `copyWith`.
 - `lib/src/sitting_controller.dart` — takes a `Volume` by injection like
-  its other layers, defaulting to `PlatformVolume()`. Where the opening
-  bell is struck, both in `_engageLayers` and in `_tick`, it reads the
-  level and saves it as `lastSittingVolume` without awaiting the strike
-  on it. It exposes `volume` (the latest `VolumeLevel?`) and listens to
+  its other layers, defaulting to `PlatformVolume()`. It exposes `volume` (the latest `VolumeLevel?`) and listens to
   `changes` from `initialize` until `dispose`, calling `notifyListeners`
   on each. It also reads the level again in `onResumed`, since neither
   platform reports a change made while the app was in the background.
 - `lib/src/ui/volume_indicator.dart` — the widget, taking the current
-  `VolumeLevel?` and the last sitting's level, and rendering nothing for a
-  null current level.
-- `lib/src/ui/sitting_page.dart` — the indicator above `_PresetRow` when
-  idle, and in the same slot while `isPreparing`.
-- `lib/src/ui/bell_page.dart` — the indicator along the top.
+  `VolumeLevel?` and rendering nothing for null.
+- `lib/src/ui/sitting_page.dart` — the indicator as the app bar's
+  `leading` when idle and while `isPreparing`.
+- `lib/src/ui/bell_page.dart` — the indicator in the app bar's `actions`.
 
 `test/fakes.dart` gains `FakeVolume`, with a settable level and a
-`StreamController` for changes. Tests cover: the level at the opening
-bell is saved, with and without a settling time, and neither a cancelled
-settling time nor the free-play bell saves anything; the controller
-passes changes through and reads again on resume; the comparison, step by
-step; `PlatformVolume` over a mocked channel; the indicator's caption for
-each of silent, same, louder and quieter and for no previous sitting;
+`StreamController` for changes. Tests cover: the controller
+passes changes through and reads again on resume; `PlatformVolume` over a
+mocked channel; the indicator's percentage, vermilion at zero;
 nothing rendered when the level is unreadable; and the indicator on the
 home screen and through the settling time, gone at the opening bell, and
 on the bell page.
@@ -185,7 +154,7 @@ alarm volume on Android.
   back stale after reactivating a session on iOS 18
   ([Apple forums](https://developer.apple.com/forums/thread/799104)). This
   needs trying on the phone: open Jikido cold, change the volume with the
-  buttons, and see whether the line moves before the bell has been struck.
+  buttons, and see whether the number moves before the bell has been struck.
   If it does not, the choices are activating the session early after all,
   or not showing the indicator on iOS until the session is known to be
   active.

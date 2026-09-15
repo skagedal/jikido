@@ -241,11 +241,11 @@ void main() {
     test('the opening phase lasts as long as the chosen bell rings', () {
       final keisu = sessionOf(bell: Bell.keisu);
       expect(
-        keisu.phaseAt(start.add(const Duration(seconds: 40))),
+        keisu.phaseAt(start.add(const Duration(seconds: 71))),
         SessionPhase.opening,
       );
       expect(
-        keisu.phaseAt(start.add(const Duration(seconds: 43))),
+        keisu.phaseAt(start.add(const Duration(seconds: 73))),
         SessionPhase.sitting,
       );
     });

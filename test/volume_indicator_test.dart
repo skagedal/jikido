@@ -5,57 +5,31 @@ import 'package:jikido/src/ui/volume_indicator.dart';
 import 'package:jikido/src/volume.dart';
 
 void main() {
-  Future<void> pump(
-    WidgetTester tester, {
-    required VolumeLevel? volume,
-    double? lastSitting,
-  }) =>
+  Future<void> pump(WidgetTester tester, VolumeLevel? volume) =>
       tester.pumpWidget(MaterialApp(
         theme: jikidoTheme(),
         home: Scaffold(
-          body: Center(
-            child: VolumeIndicator(volume: volume, lastSitting: lastSitting),
-          ),
+          body: Center(child: VolumeIndicator(volume: volume)),
         ),
       ));
 
-  VolumeLevel presses(int n) => VolumeLevel(level: n / 16, steps: 16);
+  testWidgets('the level as a percentage', (tester) async {
+    await pump(tester, const VolumeLevel(level: 0.5, steps: 16));
+    final text = tester.widget<Text>(find.text('50%'));
+    expect(text.style?.color, JikidoColors.faded);
 
-  testWidgets('silent says so, in vermilion, whatever last time was',
-      (tester) async {
-    await pump(tester, volume: presses(0), lastSitting: 0.5);
-
-    final caption = tester.widget<Text>(
-        find.text('silent — the bell will not be heard'));
-    expect(caption.style?.color, JikidoColors.vermilion);
-    expect(find.byIcon(Icons.volume_off), findsOneWidget);
+    await pump(tester, const VolumeLevel(level: 1 / 3, steps: 15));
+    expect(find.text('33%'), findsOneWidget);
   });
 
-  testWidgets('the same as last time', (tester) async {
-    await pump(tester, volume: presses(8), lastSitting: 9 / 16);
-    expect(find.text('as last time'), findsOneWidget);
-    expect(find.byIcon(Icons.volume_up), findsOneWidget);
-  });
-
-  testWidgets('louder than last time', (tester) async {
-    await pump(tester, volume: presses(12), lastSitting: 8 / 16);
-    expect(find.text('louder than last time'), findsOneWidget);
-  });
-
-  testWidgets('quieter than last time', (tester) async {
-    await pump(tester, volume: presses(4), lastSitting: 8 / 16);
-    expect(find.text('quieter than last time'), findsOneWidget);
-  });
-
-  testWidgets('no caption before any sitting', (tester) async {
-    await pump(tester, volume: presses(8));
-    expect(find.byType(Text), findsNothing);
-    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+  testWidgets('silent is vermilion', (tester) async {
+    await pump(tester, const VolumeLevel(level: 0, steps: 16));
+    final text = tester.widget<Text>(find.text('0%'));
+    expect(text.style?.color, JikidoColors.vermilion);
   });
 
   testWidgets('nothing at all when the level cannot be read', (tester) async {
-    await pump(tester, volume: null, lastSitting: 0.5);
-    expect(find.byType(Icon), findsNothing);
+    await pump(tester, null);
     expect(find.byType(Text), findsNothing);
   });
 }

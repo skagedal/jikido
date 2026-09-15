@@ -79,15 +79,24 @@ const double dampedTau = 0.05;
 
 const int sampleRate = 32000;
 
+/// How many decay times a bell left to ring is rendered for: 60 dB down,
+/// which is where a real one fades into the room. An inkin rings on for
+/// fourteen seconds, and stopping much short of that is heard as the bell
+/// being muted rather than dying away.
+final double ringOutTaus = log(1000);
+
 /// The longest ring worth rendering.
 ///
-/// A keisu at the largest size has a decay time of 26 seconds, and the 2.5 of
-/// those a full ring wants is over a minute of audio — for a bell that is
-/// 20 dB down before half of it has played. Holding a minute of samples in
-/// memory to play something nobody can hear any more is not worth the
-/// megabytes, so the tail stops here and the fade takes it the rest of the
-/// way. No bell at any offered size reaches this except the largest keisu.
-const double maxTailSeconds = 30.0;
+/// A keisu rings out over a minute and a half, and at the largest size over
+/// three. Holding that many samples in memory for a bell that is 40 dB down
+/// before the last of it has played is not worth the megabytes, so the tail
+/// stops here and the fade takes it the rest of the way.
+const double maxTailSeconds = 60.0;
+
+/// The fade at the end of a rendering covers this much of the tail. Long
+/// enough that a tail cut short by [maxTailSeconds] still dies away rather
+/// than stopping; for one that has rung out there is nothing left to fade.
+const double fadeFraction = 0.25;
 
 /// A tiny linear congruential generator.
 ///
@@ -284,8 +293,9 @@ Float64List renderSequence(
     }
   }
 
-  // Fade the last half second so the buffer cannot end on a discontinuity.
-  final fade = min((rate * 0.5).toInt(), total);
+  // Fade the end so the buffer cannot stop on a discontinuity, or on a bell
+  // still audibly ringing.
+  final fade = min((rate * max(0.5, tailSeconds * fadeFraction)).toInt(), total);
   for (var n = 0; n < fade; n++) {
     out[total - fade + n] *= 1.0 - n / fade;
   }
@@ -333,7 +343,7 @@ double sequenceSeconds(BellVoice voice, List<BellStrike> strikes) {
     // Eight time constants is 70 dB down, which is silence.
     return finalDampings.reduce(max) + dampedTau * 8;
   }
-  return lastStrike + min(voice.dominantTau * 2.5, maxTailSeconds);
+  return lastStrike + min(voice.dominantTau * ringOutTaus, maxTailSeconds);
 }
 
 /// How long the opening sequence rings for at this size.

@@ -14,28 +14,6 @@ class VolumeLevel {
 
   bool get isSilent => level <= 0;
 
-  /// How this level compares with [last], the level at the last sitting's
-  /// opening bell, or null if there has not been one.
-  ///
-  /// Within one step either way counts as the same: a single press of a
-  /// button is not a difference anyone would hear across a room.
-  VolumeComparison compareWith(double? last) {
-    if (isSilent) {
-      return VolumeComparison.silent;
-    }
-    if (last == null) {
-      return VolumeComparison.noPrevious;
-    }
-    final step = steps > 0 ? 1 / steps : 0.0;
-    // Levels arrive as quotients, so a step apart can be a hair over a step.
-    const tolerance = 1e-6;
-    final difference = level - last;
-    if (difference.abs() <= step + tolerance) {
-      return VolumeComparison.same;
-    }
-    return difference > 0 ? VolumeComparison.louder : VolumeComparison.quieter;
-  }
-
   @override
   bool operator ==(Object other) =>
       other is VolumeLevel && other.level == level && other.steps == steps;
@@ -46,8 +24,6 @@ class VolumeLevel {
   @override
   String toString() => 'VolumeLevel($level of $steps steps)';
 }
-
-enum VolumeComparison { silent, noPrevious, same, louder, quieter }
 
 /// Reads the volume the bell will ring at, and says when it changes.
 abstract class Volume {
