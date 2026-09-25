@@ -234,9 +234,8 @@ and [pinact](https://github.com/suzuki-shunsuke/pinact) moves the actions in
 `.github/workflows`, which are pinned to commit SHAs.
 
 `.github/workflows/update-dependencies.yml` runs the same script every Monday
-and opens a pull request when something moved, so the weekly update arrives on
-its own rather than from a sweep over my checkouts. CI on that pull request is
-what says whether the update builds.
+and opens a pull request when something moved. CI on that pull request is what
+says whether the update builds.
 
 ## Releasing
 
