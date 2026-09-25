@@ -2,9 +2,9 @@
 #
 # Update every dependency in the repo.
 #
-#   ./update                 # all of it
-#   ./update flutter dart    # only those parts
-#   ./update --dry-run       # print the commands, run none of them
+#   ./ci/update-dependencies                 # all of it
+#   ./ci/update-dependencies flutter dart    # only those parts
+#   ./ci/update-dependencies --dry-run       # print the commands, run none of them
 #
 # No manifest is written here. pubspec.yaml carries ranges a human put
 # there, so pubspec.lock moves underneath them and crossing a major bound
@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ALL_PARTS=(flutter dart actions)
 
 DRY_RUN=false
@@ -35,7 +35,7 @@ main() {
 
 usage() {
     cat <<'USAGE'
-usage: ./update [options] [part ...]
+usage: ./ci/update-dependencies [options] [part ...]
 
 Parts (default: all, in this order):
   flutter   the SDK pinned in .fvmrc

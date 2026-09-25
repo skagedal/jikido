@@ -26,7 +26,7 @@ never rewritten afterwards.
 
 ## Shell Scripts
 
-The scripts in `ci/`, `local/` and `./update` follow these rules:
+The scripts in `ci/` and `local/` follow these rules:
 
 - Use `#!/usr/bin/env bash` as the shebang line, not `#!/bin/bash`.
 - Use dashes, not underscores, in function names (`update-dart`, not

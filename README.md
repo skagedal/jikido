@@ -223,15 +223,20 @@ simulator builds work without it.
 ### Updating dependencies
 
 ```
-./update              # the Flutter SDK, pubspec.lock and the pinned actions
-./update --dry-run    # print what would run, change nothing
-./update dart         # only pubspec.lock
+./ci/update-dependencies              # the Flutter SDK, pubspec.lock and the pinned actions
+./ci/update-dependencies --dry-run    # print what would run, change nothing
+./ci/update-dependencies dart         # only pubspec.lock
 ```
 
 `pubspec.yaml` holds ranges a human wrote, so crossing a major version stays
 a manual edit. The Flutter SDK in `.fvmrc` follows the newest stable release,
 and [pinact](https://github.com/suzuki-shunsuke/pinact) moves the actions in
 `.github/workflows`, which are pinned to commit SHAs.
+
+`.github/workflows/update-dependencies.yml` runs the same script every Monday
+and opens a pull request when something moved, so the weekly update arrives on
+its own rather than from a sweep over my checkouts. CI on that pull request is
+what says whether the update builds.
 
 ## Releasing
 
