@@ -49,9 +49,18 @@ class _SittingPageState extends State<SittingPage> with WidgetsBindingObserver {
   Widget _build(BuildContext context) {
     final controller = widget.controller;
     final running = controller.status == SittingStatus.running;
+    // Before the sitting and through the settling time, which is when someone
+    // who has just pressed Sit reaches for the buttons. Once the opening bell
+    // has rung it has answered the question better than a number can.
+    final showVolume = controller.volume != null &&
+        (controller.status == SittingStatus.idle || controller.isPreparing);
 
     return Scaffold(
       appBar: AppBar(
+        leading: showVolume
+            ? Center(child: VolumeIndicator(volume: controller.volume))
+            : null,
+        leadingWidth: 72,
         title: const Text(
           'JIKIDO',
           style: TextStyle(letterSpacing: 6, fontSize: 14),
@@ -201,7 +210,6 @@ class _Controls extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _Volume(controller: controller),
             _PresetRow(controller: controller),
             const SizedBox(height: 28),
             _PrimaryButton(label: 'Sit', onPressed: controller.start),
@@ -216,29 +224,18 @@ class _Controls extends StatelessWidget {
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (controller.isPreparing) _Volume(controller: controller),
               _PrimaryButton(label: 'Resume', onPressed: controller.resume),
               const SizedBox(height: 8),
               _QuietButton(label: 'End sitting', onPressed: controller.cancel),
             ],
           );
         }
-        // The volume stays through the settling time, which is when someone
-        // who has just pressed Sit reaches for the buttons. Once the opening
-        // bell has rung it has answered the question better than a line can.
-        return Column(
-          mainAxisSize: MainAxisSize.min,
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (controller.isPreparing) _Volume(controller: controller),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (controller.canPause)
-                  _QuietButton(label: 'Pause', onPressed: controller.pause),
-                _QuietButton(
-                    label: 'End sitting', onPressed: controller.cancel),
-              ],
-            ),
+            if (controller.canPause)
+              _QuietButton(label: 'Pause', onPressed: controller.pause),
+            _QuietButton(label: 'End sitting', onPressed: controller.cancel),
           ],
         );
 
@@ -258,27 +255,6 @@ class _Controls extends StatelessWidget {
           ],
         );
     }
-  }
-}
-
-/// The volume indicator in its slot above the controls, or nothing.
-class _Volume extends StatelessWidget {
-  const _Volume({required this.controller});
-
-  final SittingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    if (controller.volume == null) {
-      return const SizedBox.shrink();
-    }
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: VolumeIndicator(
-        volume: controller.volume,
-        lastSitting: controller.settings.lastSittingVolume,
-      ),
-    );
   }
 }
 

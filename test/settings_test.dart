@@ -28,17 +28,6 @@ void main() {
     expect(loaded.keepScreenOn, isTrue);
   });
 
-  test('remembers the volume of the last sitting', () async {
-    expect((await Settings.load()).lastSittingVolume, isNull);
-
-    await const Settings(lastSittingVolume: 0.4375).save();
-    expect((await Settings.load()).lastSittingVolume, 0.4375);
-
-    await const Settings().copyWith(duration: const Duration(minutes: 5)).save();
-    expect((await Settings.load()).lastSittingVolume, 0.4375,
-        reason: 'saving other settings does not forget it');
-  });
-
   test('a stored duration from outside the allowed range is brought back in',
       () async {
     SharedPreferences.setMockInitialValues(<String, Object>{

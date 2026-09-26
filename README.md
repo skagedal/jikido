@@ -97,9 +97,8 @@ offers a way to grant it, and falls back to an approximate alarm otherwise.
 
 **The volume, before you sit.** The phone's volume drifts between sittings,
 and Jikido cannot set it. So the home screen, the settling time and the bell
-page show the level the bell will ring at, next to a mark for where it was at
-the last sitting's opening bell, and say whether it is louder, quieter or the
-same — or, at zero, that the bell will not be heard. On Android that is the
+page show the level the bell will ring at as a percentage in the corner,
+in vermilion at zero. On Android that is the
 alarm volume, and while Jikido is in front the side buttons adjust the alarm
 volume rather than the media volume. On iOS it is the output volume, of
 whatever the sound is going to.

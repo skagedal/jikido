@@ -215,38 +215,34 @@ void main() {
     await controller.initialize();
     await controller.setPrepare(const Duration(seconds: 10));
     await pumpPage(tester);
-    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+    expect(find.text('50%'), findsOneWidget);
 
     await tester.tap(find.text('Sit'));
     await tester.pump();
     expect(controller.isPreparing, isTrue);
-    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+    expect(find.text('50%'), findsOneWidget);
 
-    volume.change(const VolumeLevel(level: 0, steps: 16));
+    volume.change(const VolumeLevel(level: 0.25, steps: 16));
     await tester.pump();
-    expect(find.text('silent — the bell will not be heard'), findsOneWidget);
+    expect(find.text('25%'), findsOneWidget);
 
-    volume.change(const VolumeLevel(level: 0.5, steps: 16));
     clock.advance(const Duration(seconds: 10));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
     expect(audio.strikes, isNotEmpty);
-    expect(find.byIcon(Icons.volume_up), findsNothing);
+    expect(find.text('25%'), findsNothing);
 
     await tester.tap(find.text('End sitting'));
     await tester.pump();
     await tester.pump();
-
-    expect(find.text('as last time'), findsOneWidget,
-        reason: 'the level at that opening bell is what is compared against');
+    expect(find.text('25%'), findsOneWidget);
   });
 
   testWidgets('no volume is shown when it cannot be read', (tester) async {
     volume.level = null;
     await controller.initialize();
     await pumpPage(tester);
-    expect(find.byIcon(Icons.volume_up), findsNothing);
-    expect(find.byIcon(Icons.volume_off), findsNothing);
+    expect(find.textContaining('%'), findsNothing);
     expect(find.text('Sit'), findsOneWidget);
   });
 
@@ -257,7 +253,7 @@ void main() {
     await tester.tap(find.byTooltip('Ring the bell'));
     await tester.pumpAndSettle();
     expect(find.text('strike'), findsOneWidget);
-    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+    expect(find.text('50%'), findsOneWidget);
   });
 
   testWidgets('the bell can be rung on its own', (tester) async {
