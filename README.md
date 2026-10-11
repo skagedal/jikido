@@ -283,12 +283,12 @@ Once, on your machine:
 ./local/make-release-keystore
 ```
 
-It writes a keystore outside the repository and a gitignored
-`android/key.properties` pointing at it, and prints the two commands that
-give CI the same key. Back the keystore up before anything else. Android
-knows an app by its signature, so if that file is lost, everyone who has
-the app has to delete it before they can install another build — and the
-copy in `key.properties` is the only other one.
+It writes a keystore to `~/.app-signing/android`, its password beside it,
+and a gitignored `android/key.properties` pointing at both, and prints the
+two commands that give CI the same key. Back the keystore up before
+anything else — see below. Android knows an app by its signature, so if
+that file is lost, everyone who has the app has to delete it before they
+can install another build.
 
 ### Setting up the Apple side
 
@@ -314,13 +314,13 @@ $EDITOR local/appstore.env
 ```
 
 It has App Store Connect issue an Apple Distribution certificate — or
-reuses the one in `~/.apple-signing` if it is still good — registers the
+reuses the one in `~/.app-signing/apple` if it is still good — registers the
 bundle id if it is new, makes the App Store provisioning profile, and sets
 all seven iOS secrets. The certificate belongs to the team rather than the
 app, so its files there carry no app name and every app's release shares
 them; an account is allowed very few live distribution certificates, and
 asking for another while the one you have still works is how you run out.
-Back up `~/.apple-signing`: the private key is in there and nowhere else.
+Back it up; the private key is in there and nowhere else.
 
 Then turn the job on:
 
@@ -333,6 +333,29 @@ Until you do, the iOS job does not run and every release page says so.
 Run `make-ios-signing` again in a year. The certificate and the profile
 both expire a year after they are issued: the profile is replaced every
 time, the certificate only once the one you have is nearly out.
+
+### Keeping the signing material
+
+Everything that signs the apps lives in one directory, outside every
+repository:
+
+```
+~/.app-signing/
+  README.md
+  android/<app>-release.jks            one keystore per app
+  android/<app>-release.jks.password
+  apple/distribution.*                 the team's certificate, key and .p12
+  apple/<app>-appstore.mobileprovision one profile per app
+  apple/AuthKey_<id>.p8                the App Store Connect API key
+```
+
+Only the profiles can be made again for free. The keystores and the
+distribution key exist nowhere else, so back the directory up somewhere
+that survives this machine, encrypted; its README says how.
+
+CI holds its own copies as repository secrets. On a new machine, restore
+`~/.app-signing`, run `make-ios-signing` to set the iOS ones again, and
+recreate `android/key.properties`, which is not in it.
 
 ### What ends up in the repository's secrets
 
