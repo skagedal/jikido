@@ -356,6 +356,20 @@ that survives this machine, encrypted; its README says how.
 CI holds its own copies as repository secrets. On a new machine, restore
 `~/.app-signing`, run `make-ios-signing` to set the iOS ones again, and
 recreate `android/key.properties`, which is not in it.
+`make-release-keystore` refuses once the keystore exists, so by hand, from
+the repository root:
+
+```
+(umask 077
+ password="$(cat ~/.app-signing/android/jikido-release.jks.password)"
+ cat > android/key.properties <<PROPERTIES
+storeFile=$HOME/.app-signing/android/jikido-release.jks
+storePassword=$password
+keyAlias=jikido
+keyPassword=$password
+PROPERTIES
+)
+```
 
 ### What ends up in the repository's secrets
 
