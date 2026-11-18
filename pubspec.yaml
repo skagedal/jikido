@@ -20,7 +20,7 @@ version: 1.0.0+1
 
 environment:
   sdk: ^3.12.2
-  # flutter_foreground_task 11 requires it; the app is pinned to 3.47.2 in .fvmrc.
+  # flutter_foreground_task 11 requires it; the app is pinned in .fvmrc.
   flutter: ">=3.44.0"
 
 # Dependencies specify other packages that your package needs in order to work.
@@ -44,6 +44,7 @@ dependencies:
   wakelock_plus: ^1.7.0
   shared_preferences: ^2.5.5
   flutter_foreground_task: ^11.0.1
+  material_ui: ^1.11.1
 
 dev_dependencies:
   flutter_test:
