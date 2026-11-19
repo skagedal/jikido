@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jikido/src/ui/theme.dart';
 import 'package:jikido/src/ui/volume_indicator.dart';

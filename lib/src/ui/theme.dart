@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The palette: sumi ink, unbleached paper, and the vermilion of a temple
 /// pillar. Dark throughout — a timer you start and then stop looking at
